@@ -586,4 +586,72 @@ defmodule YamlRustlerTest do
       assert Enum.all?(list, &(&1 == %{"name" => "1e5", "price" => 2.5}))
     end
   end
+
+  describe "parse_all/2" do
+    test "returns every document in the stream" do
+      yaml = """
+      # leading comment
+      %YAML 1.2
+      ---
+      a: 1
+      ...
+      ---
+      b: |
+        ---
+        not a marker
+      --- [1, 2]
+      --- plain
+      """
+
+      assert {:ok, [%{"a" => 1}, %{"b" => "---\nnot a marker\n"}, [1, 2], "plain"]} ==
+               YamlRustler.parse_all(yaml)
+    end
+
+    test "parses a document without a start marker" do
+      assert {:ok, [%{"a" => 1}, %{"b" => 2}]} == YamlRustler.parse_all("a: 1\n---\nb: 2\n")
+    end
+
+    test "returns no documents for empty and comment-only input" do
+      assert {:ok, []} == YamlRustler.parse_all("")
+      assert {:ok, []} == YamlRustler.parse_all("# nothing\n")
+    end
+
+    test "returns empty documents as nil" do
+      assert {:ok, [nil, %{"b" => 2}, nil]} == YamlRustler.parse_all("---\n---\nb: 2\n---\n")
+    end
+
+    test "resolves anchors and merge keys within each document" do
+      yaml = "base: &b {x: 1}\nchild:\n  <<: *b\n  y: 2\n---\nbase: &b {x: 3}\nref: *b\n"
+
+      assert {:ok,
+              [
+                %{"base" => %{"x" => 1}, "child" => %{"x" => 1, "y" => 2}},
+                %{"base" => %{"x" => 3}, "ref" => %{"x" => 3}}
+              ]} == YamlRustler.parse_all(yaml)
+    end
+
+    test "reports errors relative to the whole stream" do
+      assert {:error, message} = YamlRustler.parse_all("a: 1\n---\nb: : c\n")
+      assert message =~ "line 3"
+    end
+
+    test "parses large streams on the dirty scheduler" do
+      doc = "list:\n" <> String.duplicate("  - {name: n, price: 2.5}\n", 500)
+      yaml = Enum.map_join(1..3, &"--- # #{&1}\n#{doc}")
+
+      assert byte_size(yaml) > 20_000
+      assert {:ok, [_, _, _] = docs} = YamlRustler.parse_all(yaml)
+      assert Enum.all?(docs, &(length(&1["list"]) == 500))
+    end
+
+    test "repairs unindented quoted strings in later documents" do
+      assert {:ok, [%{"a" => 1}, %{"iv" => "abc==\n"}]} ==
+               YamlRustler.parse_all("a: 1\n---\niv: 'abc==\n\n'\n")
+    end
+
+    test "supports ruby: true" do
+      assert {:ok, [%{"a" => "1e5"}, %{"b" => 1.5}]} ==
+               YamlRustler.parse_all("a: 1e5\n---\nb: 1.5\n", ruby: true)
+    end
+  end
 end

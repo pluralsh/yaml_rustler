@@ -170,7 +170,7 @@ dependencies = [
 
 [[package]]
 name = "yamlrustler"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "rustler",
  "yaml-rust2",

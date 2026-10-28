@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased (0.3.0)
+
+### Added
+
+- `parse_all/2` parses every document in a YAML stream and returns them as a
+  list. It takes the same options as `parse/2` and runs large inputs on a
+  dirty scheduler the same way.
+
+### Changed
+
+- Precompiled NIFs are published from the pluralsh/yaml_rustler fork, under
+  `v`-prefixed tags. The release workflow commits the checksum file to `main`
+  once every target is built.
+
 ## 0.2.2 (2026-10-22)
 
 ### Fixed

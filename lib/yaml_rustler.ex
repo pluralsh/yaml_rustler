@@ -8,9 +8,10 @@ defmodule YamlRustler do
   use RustlerPrecompiled,
     otp_app: :yaml_rustler,
     crate: "yamlrustler",
-    base_url: "https://github.com/joerichsen/yaml_rustler/releases/download/#{version}",
+    base_url: "https://github.com/pluralsh/yaml_rustler/releases/download/v#{version}",
     force_build: System.get_env("YAML_RUSTLER_BUILD") in ["1", "true"],
     version: version,
+    # Keep in sync with the build matrix in .github/workflows/release.yml
     targets: ~w(
       aarch64-apple-darwin
       aarch64-unknown-linux-gnu
@@ -60,14 +61,42 @@ defmodule YamlRustler do
   """
   @spec parse(binary, keyword) :: {:ok, term} | {:error, binary}
   def parse(yaml_string, opts \\ []) do
+    dispatch(&parse_nif/2, &parse_dirty_nif/2, yaml_string, opts)
+  end
+
+  @doc """
+  Parses every document in a YAML stream and returns them as a list.
+
+  Input without any document (an empty string or only comments) returns
+  `{:ok, []}`, and an explicitly started but empty document (e.g. a trailing
+  `---`) is returned as `nil`. Error positions are relative to the whole
+  stream. Takes the same options as `parse/2`.
+
+  ## Examples
+
+      iex> YamlRustler.parse_all("a: 1\\n---\\nb: 2\\n")
+      {:ok, [%{"a" => 1}, %{"b" => 2}]}
+
+      iex> YamlRustler.parse_all("# only a comment\\n")
+      {:ok, []}
+
+      iex> YamlRustler.parse_all("--- 1\\n---\\n")
+      {:ok, [1, nil]}
+  """
+  @spec parse_all(binary, keyword) :: {:ok, [term]} | {:error, binary}
+  def parse_all(yaml_string, opts \\ []) do
+    dispatch(&parse_all_nif/2, &parse_all_dirty_nif/2, yaml_string, opts)
+  end
+
+  defp dispatch(nif, dirty_nif, yaml_string, opts) do
     ruby = Keyword.get(opts, :ruby, false)
 
     if is_binary(yaml_string) and byte_size(yaml_string) > @dirty_threshold do
-      parse_dirty_nif(yaml_string, ruby)
+      dirty_nif.(yaml_string, ruby)
     else
       # The normal scheduler NIF leaves documents that need repairing to the dirty one
-      case parse_nif(yaml_string, ruby) do
-        :reschedule -> parse_dirty_nif(yaml_string, ruby)
+      case nif.(yaml_string, ruby) do
+        :reschedule -> dirty_nif.(yaml_string, ruby)
         result -> result
       end
     end
@@ -78,4 +107,10 @@ defmodule YamlRustler do
 
   @doc false
   def parse_dirty_nif(_yaml_string, _ruby), do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc false
+  def parse_all_nif(_yaml_string, _ruby), do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc false
+  def parse_all_dirty_nif(_yaml_string, _ruby), do: :erlang.nif_error(:nif_not_loaded)
 end

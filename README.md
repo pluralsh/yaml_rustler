@@ -9,10 +9,13 @@ Add `yaml_rustler` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:yaml_rustler, "~> 0.2.2"}
+    {:yaml_rustler, "~> 0.3.0", git: "https://github.com/pluralsh/yaml_rustler.git", branch: "main"}
   ]
 end
 ```
+
+Depend on `main` rather than a release tag: the checksums of a release's precompiled NIFs are
+committed to `main` after the tag is built.
 
 Precompiled NIFs are downloaded for common platforms, so you do not need Rust installed.
 To build the NIF from source instead, add `{:rustler, ">= 0.0.0"}` to your dependencies
@@ -29,6 +32,13 @@ iex> yaml = """
 ...> """
 iex> YamlRustler.parse(yaml)
 {:ok, %{"foo" => "bar", "baz" => ["qux", "quux"]}}
+```
+
+`parse/2` returns the first document of a stream. `parse_all/2` returns all of them:
+
+```elixir
+iex> YamlRustler.parse_all("a: 1\n---\nb: 2\n")
+{:ok, [%{"a" => 1}, %{"b" => 2}]}
 ```
 
 For YAML written by Ruby, such as Rails serialized columns, pass `ruby: true` so
@@ -63,7 +73,6 @@ These benchmarks show that YamlRustler is slightly faster than fast_yaml, perfor
 
 ## Limitations
 
-- Currently only supports parsing a single YAML document per string. Multi-document YAML files are not supported yet.
 - Does not support YAML dumping (converting Elixir structures to YAML) at this time.
 
 ## Contributing

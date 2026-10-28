@@ -1,18 +1,21 @@
 defmodule YamlRustler.MixProject do
   use Mix.Project
 
+  @version "0.3.0"
+  @source_url "https://github.com/pluralsh/yaml_rustler"
+
   def project do
     [
       app: :yaml_rustler,
-      version: "0.2.2",
+      version: @version,
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       package: package(),
       description: "Fast YAML parsing using Rust's yaml-rust2 via Rustler",
       name: "YamlRustler",
-      source_url: "https://github.com/joerichsen/yaml_rustler",
-      homepage_url: "https://github.com/joerichsen/yaml_rustler",
+      source_url: @source_url,
+      homepage_url: @source_url,
       docs: docs()
     ]
   end
@@ -25,7 +28,7 @@ defmodule YamlRustler.MixProject do
                 native/yamlrustler/Cargo.lock native/yamlrustler/.cargo/config.toml
                 checksum-*.exs),
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/joerichsen/yaml_rustler"}
+      links: %{"GitHub" => @source_url}
     ]
   end
 
@@ -33,7 +36,8 @@ defmodule YamlRustler.MixProject do
     [
       # This will display the README on the main page
       main: "readme",
-      extras: ["README.md", "CHANGELOG.md"]
+      extras: ["README.md", "CHANGELOG.md"],
+      source_ref: "v#{@version}"
     ]
   end
 

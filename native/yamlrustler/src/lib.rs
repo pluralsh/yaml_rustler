@@ -16,25 +16,49 @@ mod atoms {
     }
 }
 
+#[derive(Clone, Copy)]
+enum Select {
+    First,
+    All,
+}
+
 #[rustler::nif]
 fn parse_nif<'a>(env: Env<'a>, input: &str, ruby: bool) -> NifResult<Term<'a>> {
-    parse(env, input, ruby, false)
+    parse(env, input, ruby, false, Select::First)
 }
 
 // Large inputs take more than the ~1 ms a NIF should run on a normal scheduler
 #[rustler::nif(schedule = "DirtyCpu")]
 fn parse_dirty_nif<'a>(env: Env<'a>, input: &str, ruby: bool) -> NifResult<Term<'a>> {
-    parse(env, input, ruby, true)
+    parse(env, input, ruby, true, Select::First)
 }
 
-fn parse<'a>(env: Env<'a>, input: &str, ruby: bool, dirty: bool) -> NifResult<Term<'a>> {
+#[rustler::nif]
+fn parse_all_nif<'a>(env: Env<'a>, input: &str, ruby: bool) -> NifResult<Term<'a>> {
+    parse(env, input, ruby, false, Select::All)
+}
+
+#[rustler::nif(schedule = "DirtyCpu")]
+fn parse_all_dirty_nif<'a>(env: Env<'a>, input: &str, ruby: bool) -> NifResult<Term<'a>> {
+    parse(env, input, ruby, true, Select::All)
+}
+
+fn parse<'a>(env: Env<'a>, input: &str, ruby: bool, dirty: bool, select: Select) -> NifResult<Term<'a>> {
     let loaded = if dirty { load(input, ruby) } else { load_documents(input, ruby) };
     match loaded {
         Ok(docs) => {
-            // An empty stream (e.g. "" or only comments) has no documents
-            let result = match docs.first() {
-                Some(doc) => convert_yaml_to_term(env, doc),
-                None => rustler::types::atom::nil().encode(env),
+            let result = match select {
+                // An empty stream (e.g. "" or only comments) has no documents
+                Select::First => match docs.as_slice().first() {
+                    Some(doc) => convert_yaml_to_term(env, doc),
+                    None => rustler::types::atom::nil().encode(env),
+                },
+                Select::All => docs
+                    .as_slice()
+                    .iter()
+                    .map(|doc| convert_yaml_to_term(env, doc))
+                    .collect::<Vec<Term>>()
+                    .encode(env),
             };
             Ok(make_tuple(env, &[ok().encode(env), result]))
         },
@@ -87,10 +111,10 @@ enum Documents {
 }
 
 impl Documents {
-    fn first(&self) -> Option<&Yaml> {
+    fn as_slice(&self) -> &[Yaml] {
         match self {
-            Documents::Owned(docs) => docs.first(),
-            Documents::Loader(loader) => loader.documents().first(),
+            Documents::Owned(docs) => docs,
+            Documents::Loader(loader) => loader.documents(),
         }
     }
 }
